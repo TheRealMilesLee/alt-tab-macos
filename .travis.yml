@@ -3,10 +3,10 @@ branches:
     - master
     - develop
 os: osx
-osx_image: xcode13.4
+osx_image: xcode14.2
 language: node_js
 node_js:
-  - 10
+  - 16
 addons:
   ssh_known_hosts: github.com
   homebrew:

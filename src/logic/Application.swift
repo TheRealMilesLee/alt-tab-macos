@@ -40,7 +40,26 @@ class Application: NSObject {
     }
 
     deinit {
-        debugPrint("Deinit app", runningApplication.bundleIdentifier ?? runningApplication.bundleURL ?? "nil")
+        logger.i("Deinit app", runningApplication.bundleIdentifier ?? runningApplication.bundleURL ?? "nil")
+    }
+
+    override var description: String {
+        let s = """
+                Application(kvObservers: \(kvObservers)\
+                , runningApplication.bundleIdentifier: \(runningApplication.bundleIdentifier)\
+                , runningApplication.title: \(runningApplication.localizedName)\
+                , runningApplication.isActive: \(runningApplication.isActive)\
+                , axUiElement: \(axUiElement)\
+                , axObserver: \(axObserver)\
+                , isReallyFinishedLaunching: \(isReallyFinishedLaunching)\
+                , isHidden: \(isHidden)\
+                , hasBeenActiveOnce: \(hasBeenActiveOnce)\
+                , dockLabel: \(dockLabel)\
+                , pid: \(pid)\
+                , focusedWindow.cgWindowId: \(focusedWindow?.cgWindowId)\
+                , alreadyRequestedToQuit: \(alreadyRequestedToQuit)
+                """
+        return s
     }
 
     func removeWindowslessAppWindow() {
@@ -54,7 +73,7 @@ class Application: NSObject {
         if runningApplication.activationPolicy != .prohibited && axUiElement == nil {
             axUiElement = AXUIElementCreateApplication(pid)
             AXObserverCreate(pid, axObserverCallback, &axObserver)
-            debugPrint("Adding app", pid ?? "nil", runningApplication.bundleIdentifier ?? "nil")
+            logger.i("Adding app", pid ?? "nil", runningApplication.bundleIdentifier ?? "nil")
             observeEvents()
         }
     }
@@ -63,6 +82,7 @@ class Application: NSObject {
         // TODO: this method manually checks windows, but will not find windows on other Spaces
         retryAxCallUntilTimeout(group, 5) { [weak self] in
             guard let self = self else { return }
+            var atLeastOneActualWindow = false
             if let axWindows_ = try self.axUiElement!.windows(), axWindows_.count > 0 {
                 // bug in macOS: sometimes the OS returns multiple duplicate windows (e.g. Mail.app starting at login)
                 try Array(Set(axWindows_)).forEach { axWindow in
@@ -76,6 +96,7 @@ class Application: NSObject {
                             let isFullscreen = try axWindow.isFullscreen()
                             let isMinimized = try axWindow.isMinimized()
                             let position = try axWindow.position()
+                            atLeastOneActualWindow = true
                             DispatchQueue.main.async { [weak self] in
                                 guard let self = self else { return }
                                 if let window = (Windows.list.first { $0.isEqualRobust(axWindow, wid) }) {
@@ -92,7 +113,8 @@ class Application: NSObject {
                         }
                     }
                 }
-            } else {
+            }
+            if (!atLeastOneActualWindow) {
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { return }
                     let window = self.addWindowslessAppsIfNeeded()
@@ -180,7 +202,7 @@ class Application: NSObject {
                             self.manuallyUpdateWindows()
                         }
                     }
-                }, self.runningApplication)
+                })
             }
         }
         CFRunLoopAddSource(BackgroundWork.accessibilityEventsThread.runLoop, AXObserverGetRunLoopSource(axObserver), .defaultMode)
